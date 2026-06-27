@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   FileText, Image, Video, FileSpreadsheet, FileArchive, Folder, File, FileCode,
   Search, RefreshCw, LogOut, ArrowUpRight, Download, Calendar, HardDrive, 
@@ -89,6 +89,7 @@ export default function DriveFiles() {
   const [viewLayout, setViewLayout] = useState<'grid' | 'list'>('grid');
   const [isZipping, setIsZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState('');
+  const isCancelledRef = useRef(false);
 
   // Subscribe to auth state updates
   useEffect(() => {
@@ -282,6 +283,7 @@ export default function DriveFiles() {
 
     setIsZipping(true);
     setZipProgress('Menyiapkan struktur unduhan...');
+    isCancelledRef.current = false;
 
     try {
       const zip = new JSZip();
@@ -289,6 +291,9 @@ export default function DriveFiles() {
 
       // Recursive function to fetch and add files to the ZIP
       const processFolder = async (folderId: string, currentPath: string) => {
+        if (isCancelledRef.current) {
+          throw new Error('UNDUHAN_DIBATALKAN');
+        }
         let folderFiles: DriveFile[] = [];
         
         try {
@@ -302,12 +307,18 @@ export default function DriveFiles() {
             const data = await res.json();
             folderFiles = data.files || [];
           }
-        } catch (err) {
+        } catch (err: any) {
+          if (isCancelledRef.current) {
+            throw new Error('UNDUHAN_DIBATALKAN');
+          }
           console.error(`Gagal mengambil data untuk folderId ${folderId}:`, err);
           return;
         }
 
         for (const file of folderFiles) {
+          if (isCancelledRef.current) {
+            throw new Error('UNDUHAN_DIBATALKAN');
+          }
           const relativeFilePath = currentPath ? `${currentPath}/${file.name}` : file.name;
 
           if (file.mimeType.includes('folder')) {
@@ -321,8 +332,15 @@ export default function DriveFiles() {
               const res = await fetch(`/api/download-file?fileId=${file.id}`);
               if (!res.ok) throw new Error(`Status ${res.status}`);
               const blob = await res.blob();
+              
+              if (isCancelledRef.current) {
+                throw new Error('UNDUHAN_DIBATALKAN');
+              }
               zip.file(relativeFilePath, blob);
-            } catch (fetchErr) {
+            } catch (fetchErr: any) {
+              if (fetchErr.message === 'UNDUHAN_DIBATALKAN') {
+                throw fetchErr;
+              }
               console.error(`Gagal mengunduh file ${relativeFilePath}:`, fetchErr);
               // Continue processing other files
             }
@@ -333,6 +351,10 @@ export default function DriveFiles() {
       const currentFolderId = folderPath[folderPath.length - 1]?.id || 'root';
       await processFolder(currentFolderId, '');
 
+      if (isCancelledRef.current) {
+        throw new Error('UNDUHAN_DIBATALKAN');
+      }
+
       if (totalFilesProcessed === 0) {
         alert('Tidak ada file yang ditemukan di dalam folder ini atau subfoldernya.');
         setIsZipping(false);
@@ -342,6 +364,10 @@ export default function DriveFiles() {
 
       setZipProgress(`Mengompresi ${totalFilesProcessed} file menjadi satu file .zip...`);
       const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+      if (isCancelledRef.current) {
+        throw new Error('UNDUHAN_DIBATALKAN');
+      }
 
       // Get current folder name for the zip filename
       const currentFolderName = folderPath[folderPath.length - 1]?.name || 'Beranda';
@@ -358,6 +384,10 @@ export default function DriveFiles() {
       // Clean up URL object
       setTimeout(() => URL.revokeObjectURL(link.href), 100);
     } catch (err: any) {
+      if (err.message === 'UNDUHAN_DIBATALKAN') {
+        console.log('Error zipping files recursively: cancelled');
+        return;
+      }
       console.error('Error zipping files recursively:', err);
       alert(`Gagal mengunduh folder sebagai ZIP: ${err.message || err}`);
     } finally {
@@ -1081,6 +1111,18 @@ export default function DriveFiles() {
                 {zipProgress}
               </p>
             </div>
+
+            {/* Cancel Button */}
+            <button
+              onClick={() => {
+                isCancelledRef.current = true;
+                setIsZipping(false);
+                setZipProgress('');
+              }}
+              className="mt-4 w-full py-2.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-semibold text-xs rounded-xl transition-all border border-slate-200/60 hover:border-rose-100 cursor-pointer shadow-3xs hover:shadow-2xs active:scale-97"
+            >
+              Batalkan Unduhan
+            </button>
             
             <p className="text-[10px] text-slate-400 mt-4 italic">
               Mohon jangan tutup halaman ini selama proses berjalan.
