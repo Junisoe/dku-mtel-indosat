@@ -135,6 +135,47 @@ async function startServer() {
     }
   });
 
+  // Proxy route to download files bypassing CORS for zipping
+  app.get('/api/download-file', async (req, res) => {
+    try {
+      const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
+      const fileId = req.query.fileId as string;
+
+      if (!fileId) {
+        return res.status(400).json({ error: 'Parameter fileId diperlukan' });
+      }
+
+      if (!apiKey) {
+        // Return dummy text file if API Key isn't configured
+        res.setHeader('Content-Type', 'text/plain');
+        res.setHeader('Content-Disposition', `attachment; filename="mock-${fileId}.txt"`);
+        return res.send(`Ini adalah file tiruan (ID: ${fileId}) karena Google Drive API Key belum dikonfigurasi di server.`);
+      }
+
+      const driveUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
+      const response = await fetch(driveUrl);
+
+      if (!response.ok) {
+        console.error(`Google API file download failed with status ${response.status}`);
+        return res.status(response.status).json({ error: `Google API error: ${response.statusText}` });
+      }
+
+      const contentType = response.headers.get('content-type') || 'application/octet-stream';
+      const contentLength = response.headers.get('content-length');
+
+      res.setHeader('Content-Type', contentType);
+      if (contentLength) {
+        res.setHeader('Content-Length', contentLength);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      return res.send(Buffer.from(arrayBuffer));
+    } catch (error: any) {
+      console.error('Server error on download-file route:', error);
+      res.status(500).json({ error: error.message || 'Gagal mengunduh file.' });
+    }
+  });
+
   // Serve static files in production or hook Vite development middleware
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

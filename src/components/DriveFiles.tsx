@@ -8,8 +8,9 @@ import {
   FileText, Image, Video, FileSpreadsheet, FileArchive, Folder, File, FileCode,
   Search, RefreshCw, LogOut, ArrowUpRight, Download, Calendar, HardDrive, 
   Layers, User as UserIcon, AlertCircle, CheckCircle2, ChevronRight, X, Eye,
-  LayoutGrid, List, ChevronLeft
+  LayoutGrid, List, ChevronLeft, FolderDown
 } from 'lucide-react';
+import JSZip from 'jszip';
 import { User } from 'firebase/auth';
 import { DriveFile } from '../types';
 import { googleSignIn, logout, subscribeAuth } from '../lib/auth';
@@ -86,6 +87,8 @@ export default function DriveFiles() {
   const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null);
   const [previewingFile, setPreviewingFile] = useState<DriveFile | null>(null);
   const [viewLayout, setViewLayout] = useState<'grid' | 'list'>('grid');
+  const [isZipping, setIsZipping] = useState(false);
+  const [zipProgress, setZipProgress] = useState('');
 
   // Subscribe to auth state updates
   useEffect(() => {
@@ -270,6 +273,65 @@ export default function DriveFiles() {
     setSelectedFile(nextFile);
   }, [filteredFiles, previewingFile]);
 
+  // Download all files in the current folder as a single ZIP
+  const downloadFolderAsZip = useCallback(async () => {
+    // Only get files (exclude directories)
+    const filesToZip = filteredFiles.filter(f => !f.mimeType.includes('folder'));
+    if (filesToZip.length === 0) {
+      alert('Tidak ada file di folder ini yang dapat diunduh.');
+      return;
+    }
+
+    setIsZipping(true);
+    setZipProgress('Menyiapkan kompresi...');
+
+    try {
+      const zip = new JSZip();
+      
+      for (let i = 0; i < filesToZip.length; i++) {
+        const file = filesToZip[i];
+        setZipProgress(`Mengunduh (${i + 1}/${filesToZip.length}): ${file.name}`);
+        
+        try {
+          // Fetch via our secure proxy
+          const res = await fetch(`/api/download-file?fileId=${file.id}`);
+          if (!res.ok) {
+            throw new Error(`Status ${res.status}`);
+          }
+          const blob = await res.blob();
+          zip.file(file.name, blob);
+        } catch (fetchErr) {
+          console.error(`Gagal mengunduh ${file.name}:`, fetchErr);
+          // Continue to zip other files anyway to be resilient
+        }
+      }
+
+      setZipProgress('Mengompresi file menjadi .zip...');
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+      // Get current folder name for the zip filename
+      const currentFolderName = folderPath[folderPath.length - 1]?.name || 'Beranda';
+      const cleanFileName = `${currentFolderName.replace(/[^a-z0-9]/gi, '_')}_Archive.zip`;
+
+      // Trigger download
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = cleanFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up URL object
+      setTimeout(() => URL.revokeObjectURL(link.href), 100);
+    } catch (err: any) {
+      console.error('Error zipping files:', err);
+      alert(`Gagal mengunduh folder sebagai ZIP: ${err.message || err}`);
+    } finally {
+      setIsZipping(false);
+      setZipProgress('');
+    }
+  }, [filteredFiles, folderPath]);
+
   // Keyboard arrow keys navigation for preview
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -434,6 +496,16 @@ export default function DriveFiles() {
                   <List className="w-3.5 h-3.5" />
                 </button>
               </div>
+
+              <button 
+                onClick={downloadFolderAsZip}
+                disabled={isZipping || isLoadingFiles}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-emerald-650 hover:bg-emerald-700 rounded-xl transition-all shadow-3xs cursor-pointer disabled:opacity-50"
+                title="Unduh seluruh file dalam folder ini sekaligus sebagai file .zip"
+              >
+                <FolderDown className={`w-3.5 h-3.5 ${isZipping ? 'animate-pulse' : ''}`} />
+                <span>Unduh Semua (.zip)</span>
+              </button>
 
               <button 
                 onClick={() => {
@@ -955,6 +1027,33 @@ export default function DriveFiles() {
           </div>
         );
       })()}
+
+      {/* COMPRESSION ZIP PROGRESS MODAL */}
+      {isZipping && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 flex flex-col items-center text-center shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center border border-emerald-100 shadow-sm mb-4 animate-bounce">
+              <FolderDown className="w-8 h-8" />
+            </div>
+            <h3 className="font-bold text-slate-800 text-lg">Mengunduh Folder...</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-xs leading-normal">
+              File sedang diunduh dan dikompresi menjadi satu file .zip secara langsung di browser Anda.
+            </p>
+            
+            {/* Progress status */}
+            <div className="mt-5 w-full bg-slate-50 border border-slate-150 rounded-xl p-3.5 flex items-center gap-3">
+              <RefreshCw className="w-4 h-4 text-emerald-600 animate-spin flex-shrink-0" />
+              <p className="text-[11px] font-medium text-slate-600 text-left font-mono truncate flex-1" title={zipProgress}>
+                {zipProgress}
+              </p>
+            </div>
+            
+            <p className="text-[10px] text-slate-400 mt-4 italic">
+              Mohon jangan tutup halaman ini selama proses berjalan.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
