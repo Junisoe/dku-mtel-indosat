@@ -8,16 +8,27 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User,
 import { getFirestore } from 'firebase/firestore';
 import firebaseConfigJson from '../../firebase-applet-config.json';
 
-// Use environment variables if set, fallback to imported JSON config
+// Prioritize the correct JSON config, fallback to environment variables if missing
+const metaEnv = (import.meta as any).env || {};
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigJson.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigJson.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigJson.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigJson.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigJson.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfigJson.appId,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || firebaseConfigJson.measurementId,
+  apiKey: firebaseConfigJson.apiKey || metaEnv.VITE_FIREBASE_API_KEY,
+  authDomain: firebaseConfigJson.authDomain || metaEnv.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: firebaseConfigJson.projectId || metaEnv.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: firebaseConfigJson.storageBucket || metaEnv.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: firebaseConfigJson.messagingSenderId || metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: firebaseConfigJson.appId || metaEnv.VITE_FIREBASE_APP_ID,
+  measurementId: firebaseConfigJson.measurementId || metaEnv.VITE_FIREBASE_MEASUREMENT_ID,
 };
+
+// Safe debug log to show which API key is actually running in the browser
+if (firebaseConfig.apiKey) {
+  const len = firebaseConfig.apiKey.length;
+  console.log(
+    `[Firebase Init] Menggunakan API Key: ${firebaseConfig.apiKey.substring(0, 8)}...${firebaseConfig.apiKey.substring(len - 4)}`
+  );
+} else {
+  console.error('[Firebase Init] API Key tidak ditemukan!');
+}
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
