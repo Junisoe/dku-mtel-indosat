@@ -7,7 +7,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   FileText, Image, Video, FileSpreadsheet, FileArchive, Folder, File, FileCode,
   Search, RefreshCw, LogOut, ArrowUpRight, Download, Calendar, HardDrive, 
-  Layers, User as UserIcon, AlertCircle, CheckCircle2, ChevronRight, X, Eye
+  Layers, User as UserIcon, AlertCircle, CheckCircle2, ChevronRight, X, Eye,
+  LayoutGrid, List, ChevronLeft
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { DriveFile } from '../types';
@@ -84,6 +85,7 @@ export default function DriveFiles() {
   const [activeCategory, setActiveCategory] = useState<'all' | 'folders' | 'documents' | 'spreadsheets' | 'images' | 'pdfs'>('all');
   const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null);
   const [previewingFile, setPreviewingFile] = useState<DriveFile | null>(null);
+  const [viewLayout, setViewLayout] = useState<'grid' | 'list'>('grid');
 
   // Subscribe to auth state updates
   useEffect(() => {
@@ -242,6 +244,50 @@ export default function DriveFiles() {
     return true;
   });
 
+  // Navigate to previous file in preview
+  const handlePrevFile = useCallback(() => {
+    if (filteredFiles.length <= 1 || !previewingFile) return;
+    const currentIndex = filteredFiles.findIndex(f => f.id === previewingFile.id);
+    let prevIndex = currentIndex - 1;
+    if (prevIndex < 0) {
+      prevIndex = filteredFiles.length - 1;
+    }
+    const nextFile = filteredFiles[prevIndex];
+    setPreviewingFile(nextFile);
+    setSelectedFile(nextFile);
+  }, [filteredFiles, previewingFile]);
+
+  // Navigate to next file in preview
+  const handleNextFile = useCallback(() => {
+    if (filteredFiles.length <= 1 || !previewingFile) return;
+    const currentIndex = filteredFiles.findIndex(f => f.id === previewingFile.id);
+    let nextIndex = currentIndex + 1;
+    if (nextIndex >= filteredFiles.length) {
+      nextIndex = 0;
+    }
+    const nextFile = filteredFiles[nextIndex];
+    setPreviewingFile(nextFile);
+    setSelectedFile(nextFile);
+  }, [filteredFiles, previewingFile]);
+
+  // Keyboard arrow keys navigation for preview
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!previewingFile) return;
+      if (e.key === 'ArrowRight') {
+        handleNextFile();
+      } else if (e.key === 'ArrowLeft') {
+        handlePrevFile();
+      } else if (e.key === 'Escape') {
+        setPreviewingFile(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [previewingFile, handleNextFile, handlePrevFile]);
+
   // Calculate statistics
   const totalFilesCount = files.length;
   const foldersCount = files.filter(f => f.mimeType.includes('folder')).length;
@@ -372,6 +418,23 @@ export default function DriveFiles() {
                 </button>
               </div>
 
+              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 shadow-3xs">
+                <button
+                  onClick={() => setViewLayout('grid')}
+                  className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewLayout === 'grid' ? 'bg-white text-emerald-700 shadow-3xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  title="Tampilan Galeri / Grid"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setViewLayout('list')}
+                  className={`p-1.5 rounded-lg transition-all cursor-pointer ${viewLayout === 'list' ? 'bg-white text-emerald-700 shadow-3xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  title="Tampilan Tabel / Daftar"
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
               <button 
                 onClick={() => {
                   const currentFolderId = folderPath[folderPath.length - 1]?.id;
@@ -457,7 +520,7 @@ export default function DriveFiles() {
                     {searchQuery ? 'Coba bersihkan filter pencarian Anda.' : 'Unggah file atau folder ke Google Drive Anda untuk melihatnya di sini secara otomatis.'}
                   </p>
                 </div>
-              ) : (
+              ) : viewLayout === 'list' ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -553,6 +616,109 @@ export default function DriveFiles() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              ) : (
+                <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+                  {filteredFiles.map((file) => {
+                    const mDetails = getMimeTypeDetails(file.mimeType);
+                    const FileIcon = mDetails.icon;
+                    const isSelected = selectedFile?.id === file.id;
+                    const thumbnailSrc = file.thumbnailLink ? file.thumbnailLink.replace(/=s\d+$/, '=s400') : undefined;
+
+                    return (
+                      <div 
+                        key={file.id}
+                        onClick={() => setSelectedFile(file)}
+                        onDoubleClick={() => {
+                          if (file.mimeType.includes('folder')) {
+                            handleNavigateIntoFolder(file);
+                          } else {
+                            setPreviewingFile(file);
+                          }
+                        }}
+                        className={`group relative flex flex-col bg-white border rounded-2xl overflow-hidden transition-all duration-200 cursor-pointer shadow-3xs hover:shadow-xs ${isSelected ? 'border-emerald-500 ring-1 ring-emerald-500/20 bg-emerald-50/10 shadow-emerald-500/10' : 'border-slate-100 hover:border-slate-200'}`}
+                        title={file.mimeType.includes('folder') ? "Klik dua kali untuk membuka folder" : "Klik dua kali untuk pratinjau langsung"}
+                      >
+                        {/* Thumbnail / icon area */}
+                        <div className="aspect-video w-full bg-slate-50 border-b border-slate-100 flex items-center justify-center overflow-hidden relative">
+                          {thumbnailSrc ? (
+                            <img 
+                              src={thumbnailSrc} 
+                              alt={file.name} 
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              referrerPolicy="no-referrer"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${mDetails.color}`}>
+                              <FileIcon className="w-6 h-6" />
+                            </div>
+                          )}
+
+                          {/* Hover Overlay */}
+                          <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            {file.mimeType.includes('folder') ? (
+                              <button 
+                                onClick={() => handleNavigateIntoFolder(file)}
+                                className="p-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all shadow-sm transform translate-y-1 group-hover:translate-y-0 duration-200 cursor-pointer"
+                                title="Buka Folder"
+                              >
+                                <Folder className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => setPreviewingFile(file)}
+                                className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-sm transform translate-y-1 group-hover:translate-y-0 duration-200 cursor-pointer"
+                                title="Pratinjau Langsung"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            )}
+                            {file.webContentLink && (
+                              <a 
+                                href={file.webContentLink} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                referrerPolicy="no-referrer"
+                                className="p-2 bg-white hover:bg-slate-50 text-slate-700 rounded-xl transition-all shadow-sm transform translate-y-1 group-hover:translate-y-0 duration-200 cursor-pointer"
+                                title="Unduh"
+                              >
+                                <Download className="w-4 h-4" />
+                              </a>
+                            )}
+                          </div>
+
+                          <span className="absolute bottom-2 left-2 px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-white/95 text-slate-600 border border-slate-100 shadow-4xs backdrop-blur-xs">
+                            {mDetails.label}
+                          </span>
+                        </div>
+
+                        {/* Text Info */}
+                        <div className="p-3.5 flex-1 flex flex-col justify-between">
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-slate-800 line-clamp-2 leading-tight break-all" title={file.name}>
+                              {file.name}
+                            </p>
+                            {file.owners && file.owners[0] && (
+                              <p className="text-[10px] text-slate-400 truncate">
+                                Pemilik: {file.owners[0].displayName}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 text-[10px] text-slate-400 font-medium font-mono">
+                            <span>{file.mimeType.includes('folder') ? '-' : formatBytes(file.size)}</span>
+                            <span>
+                              {file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString('id-ID', {
+                                day: 'numeric',
+                                month: 'short'
+                              }) : '-'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -691,67 +857,104 @@ export default function DriveFiles() {
           </div>
 
       {/* INLINE PREVIEW MODAL */}
-      {previewingFile && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-150 flex items-center justify-between">
-              <div className="flex items-center gap-3 truncate mr-4">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${getMimeTypeDetails(previewingFile.mimeType).color}`}>
-                  {React.createElement(getMimeTypeDetails(previewingFile.mimeType).icon, { className: "w-4 h-4" })}
-                </div>
-                <div className="truncate text-left">
-                  <h3 className="font-bold text-slate-800 text-sm truncate" title={previewingFile.name}>
-                    {previewingFile.name}
-                  </h3>
-                  <p className="text-[10px] text-slate-500">
-                    ID: {previewingFile.id} • {previewingFile.mimeType.includes('folder') ? 'Folder' : formatBytes(previewingFile.size)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button 
-                  onClick={() => setPreviewingFile(null)}
-                  className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-all cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Frame Viewer */}
-            <div className="flex-1 bg-slate-100 relative">
-              {previewingFile.mimeType.includes('folder') ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center space-y-4">
-                  <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center border border-amber-200 shadow-sm">
-                    <Folder className="w-8 h-8" />
+      {previewingFile && (() => {
+        const activePreviewIndex = filteredFiles.findIndex(f => f.id === previewingFile.id);
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+              {/* Header */}
+              <div className="px-6 py-4 bg-slate-50 border-b border-slate-150 flex items-center justify-between">
+                <div className="flex items-center gap-3 truncate mr-4">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${getMimeTypeDetails(previewingFile.mimeType).color}`}>
+                    {React.createElement(getMimeTypeDetails(previewingFile.mimeType).icon, { className: "w-4 h-4" })}
                   </div>
-                  <div>
-                    <h4 className="font-bold text-slate-800">Pratinjau Folder Bersama</h4>
-                    <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-                      Folder tidak dapat ditampilkan sebagai dokumen tunggal. Gunakan navigasi daftar file utama di situs ini untuk menjelajahi seluruh isinya secara langsung.
+                  <div className="truncate text-left">
+                    <h3 className="font-bold text-slate-800 text-sm truncate" title={previewingFile.name}>
+                      {previewingFile.name}
+                    </h3>
+                    <p className="text-[10px] text-slate-500">
+                      ID: {previewingFile.id} • {previewingFile.mimeType.includes('folder') ? 'Folder' : formatBytes(previewingFile.size)}
                     </p>
                   </div>
+                </div>
+                
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {filteredFiles.length > 1 && activePreviewIndex !== -1 && (
+                    <span className="px-3 py-1 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-lg text-xs font-bold font-mono">
+                      {activePreviewIndex + 1} / {filteredFiles.length}
+                    </span>
+                  )}
                   <button 
                     onClick={() => setPreviewingFile(null)}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+                    className="p-2 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-all cursor-pointer"
                   >
-                    Tutup Pratinjau
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
-              ) : (
-                <iframe
-                  src={`https://drive.google.com/file/d/${previewingFile.id}/preview`}
-                  className="w-full h-full border-0 bg-white"
-                  allow="autoplay"
-                  referrerPolicy="no-referrer"
-                  title={previewingFile.name}
-                />
-              )}
+              </div>
+
+              {/* Frame Viewer */}
+              <div className="flex-1 bg-slate-100 relative group/viewer">
+                {previewingFile.mimeType.includes('folder') ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center space-y-4">
+                    <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center border border-amber-200 shadow-sm">
+                      <Folder className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800">Pratinjau Folder Bersama</h4>
+                      <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                        Folder tidak dapat ditampilkan sebagai dokumen tunggal. Gunakan navigasi daftar file utama di situs ini untuk menjelajahi seluruh isinya secara langsung.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => setPreviewingFile(null)}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+                    >
+                      Tutup Pratinjau
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <iframe
+                      src={`https://drive.google.com/file/d/${previewingFile.id}/preview`}
+                      className="w-full h-full border-0 bg-white"
+                      allow="autoplay"
+                      referrerPolicy="no-referrer"
+                      title={previewingFile.name}
+                    />
+
+                    {/* Navigation Buttons */}
+                    {filteredFiles.length > 1 && (
+                      <>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePrevFile();
+                          }}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-full shadow-lg border border-slate-200 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+                          title="File Sebelumnya (Tombol Kiri)"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNextFile();
+                          }}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-full shadow-lg border border-slate-200 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+                          title="File Selanjutnya (Tombol Kanan)"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
