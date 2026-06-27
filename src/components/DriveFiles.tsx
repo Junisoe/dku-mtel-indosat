@@ -500,7 +500,7 @@ export default function DriveFiles() {
               <button 
                 onClick={downloadFolderAsZip}
                 disabled={isZipping || isLoadingFiles}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-emerald-650 hover:bg-emerald-700 rounded-xl transition-all shadow-3xs cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-all shadow-3xs hover:shadow-2xs active:scale-97 cursor-pointer disabled:opacity-50"
                 title="Unduh seluruh file dalam folder ini sekaligus sebagai file .zip"
               >
                 <FolderDown className={`w-3.5 h-3.5 ${isZipping ? 'animate-pulse' : ''}`} />
