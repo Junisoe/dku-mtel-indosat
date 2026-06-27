@@ -14,6 +14,7 @@ import JSZip from 'jszip';
 import { User } from 'firebase/auth';
 import { DriveFile } from '../types';
 import { googleSignIn, logout, subscribeAuth } from '../lib/auth';
+import { CommentsSection } from './CommentsSection';
 
 // Help helper for size formatting
 export function formatBytes(bytesStr?: string): string {
@@ -991,6 +992,14 @@ export default function DriveFiles() {
               </div>
             )}
           </div>
+
+          {/* REAL-TIME DISCUSSION BOARD FOR THE CURRENT FOLDER */}
+          <CommentsSection 
+            folderId={folderPath[folderPath.length - 1]?.id || 'root'}
+            folderName={folderPath[folderPath.length - 1]?.name || 'Beranda'}
+            user={user}
+            onSignIn={handleSignIn}
+          />
 
       {/* INLINE PREVIEW MODAL */}
       {previewingFile && (() => {

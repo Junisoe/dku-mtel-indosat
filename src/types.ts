@@ -32,3 +32,15 @@ export interface UserAuthInfo {
   photoURL: string | null;
   uid: string;
 }
+
+export interface Comment {
+  id: string;
+  folderId: string;
+  folderName: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userPhoto: string | null;
+  text: string;
+  createdAt: any;
+}
