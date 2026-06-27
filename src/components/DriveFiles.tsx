@@ -273,40 +273,74 @@ export default function DriveFiles() {
     setSelectedFile(nextFile);
   }, [filteredFiles, previewingFile]);
 
-  // Download all files in the current folder as a single ZIP
+  // Download all files in the current folder (including nested subfolders) as a single ZIP
   const downloadFolderAsZip = useCallback(async () => {
-    // Only get files (exclude directories)
-    const filesToZip = filteredFiles.filter(f => !f.mimeType.includes('folder'));
-    if (filesToZip.length === 0) {
-      alert('Tidak ada file di folder ini yang dapat diunduh.');
+    if (filteredFiles.length === 0) {
+      alert('Tidak ada item di folder ini yang dapat diunduh.');
       return;
     }
 
     setIsZipping(true);
-    setZipProgress('Menyiapkan kompresi...');
+    setZipProgress('Menyiapkan struktur unduhan...');
 
     try {
       const zip = new JSZip();
-      
-      for (let i = 0; i < filesToZip.length; i++) {
-        const file = filesToZip[i];
-        setZipProgress(`Mengunduh (${i + 1}/${filesToZip.length}): ${file.name}`);
+      let totalFilesProcessed = 0;
+
+      // Recursive function to fetch and add files to the ZIP
+      const processFolder = async (folderId: string, currentPath: string) => {
+        let folderFiles: DriveFile[] = [];
         
         try {
-          // Fetch via our secure proxy
-          const res = await fetch(`/api/download-file?fileId=${file.id}`);
-          if (!res.ok) {
-            throw new Error(`Status ${res.status}`);
+          // Check if this is the initial folder, we can reuse filteredFiles to save an API request
+          const currentFolderId = folderPath[folderPath.length - 1]?.id || 'root';
+          if (folderId === currentFolderId) {
+            folderFiles = filteredFiles;
+          } else {
+            const res = await fetch(`/api/public-files?folderId=${folderId}`);
+            if (!res.ok) throw new Error(`Gagal memuat isi folder: ${res.statusText}`);
+            const data = await res.json();
+            folderFiles = data.files || [];
           }
-          const blob = await res.blob();
-          zip.file(file.name, blob);
-        } catch (fetchErr) {
-          console.error(`Gagal mengunduh ${file.name}:`, fetchErr);
-          // Continue to zip other files anyway to be resilient
+        } catch (err) {
+          console.error(`Gagal mengambil data untuk folderId ${folderId}:`, err);
+          return;
         }
+
+        for (const file of folderFiles) {
+          const relativeFilePath = currentPath ? `${currentPath}/${file.name}` : file.name;
+
+          if (file.mimeType.includes('folder')) {
+            // It's a folder, traverse recursively
+            await processFolder(file.id, relativeFilePath);
+          } else {
+            // It's a file, download and add to ZIP
+            totalFilesProcessed++;
+            setZipProgress(`Mengunduh (${totalFilesProcessed}): ${relativeFilePath}`);
+            try {
+              const res = await fetch(`/api/download-file?fileId=${file.id}`);
+              if (!res.ok) throw new Error(`Status ${res.status}`);
+              const blob = await res.blob();
+              zip.file(relativeFilePath, blob);
+            } catch (fetchErr) {
+              console.error(`Gagal mengunduh file ${relativeFilePath}:`, fetchErr);
+              // Continue processing other files
+            }
+          }
+        }
+      };
+
+      const currentFolderId = folderPath[folderPath.length - 1]?.id || 'root';
+      await processFolder(currentFolderId, '');
+
+      if (totalFilesProcessed === 0) {
+        alert('Tidak ada file yang ditemukan di dalam folder ini atau subfoldernya.');
+        setIsZipping(false);
+        setZipProgress('');
+        return;
       }
 
-      setZipProgress('Mengompresi file menjadi .zip...');
+      setZipProgress(`Mengompresi ${totalFilesProcessed} file menjadi satu file .zip...`);
       const zipBlob = await zip.generateAsync({ type: 'blob' });
 
       // Get current folder name for the zip filename
@@ -324,7 +358,7 @@ export default function DriveFiles() {
       // Clean up URL object
       setTimeout(() => URL.revokeObjectURL(link.href), 100);
     } catch (err: any) {
-      console.error('Error zipping files:', err);
+      console.error('Error zipping files recursively:', err);
       alert(`Gagal mengunduh folder sebagai ZIP: ${err.message || err}`);
     } finally {
       setIsZipping(false);
