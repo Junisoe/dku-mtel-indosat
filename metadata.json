@@ -1,0 +1,6 @@
+{
+  "name": "Google Drive Sync Viewer",
+  "description": "Website otomatis menampilkan file Google Drive Anda yang terintegrasi langsung via API. Disertai panduan langkah demi langkah untuk deployment ke Vercel melalui GitHub.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
