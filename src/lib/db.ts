@@ -136,6 +136,7 @@ export const subscribeComments = (
       // Extract clean error message for user UI
       onError(error.message || String(error));
     }
+    handleFirestoreError(error, OperationType.GET, path);
   });
 };
 

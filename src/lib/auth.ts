@@ -33,7 +33,9 @@ if (firebaseConfig.apiKey) {
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = (firebaseConfigJson as any).firestoreDatabaseId
+  ? getFirestore(app, (firebaseConfigJson as any).firestoreDatabaseId)
+  : getFirestore(app);
 
 // Use GoogleAuthProvider and set requested scopes
 const provider = new GoogleAuthProvider();
