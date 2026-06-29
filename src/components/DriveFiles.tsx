@@ -73,9 +73,20 @@ export default function DriveFiles() {
   const [viewMode, setViewMode] = useState<'shared-folder' | 'entire-drive'>('shared-folder');
 
   // Active folder navigation path stack
-  const [folderPath, setFolderPath] = useState<Array<{ id: string; name: string }>>([
-    { id: '1W_9Ab_i_hBWwisY3XMqsGYLNb6nWY1o_', name: 'Beranda' }
-  ]);
+  const [folderPath, setFolderPath] = useState<Array<{ id: string; name: string }>>(() => {
+    try {
+      const saved = localStorage.getItem('drive_folder_path');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Error loading folderPath from localStorage:', e);
+    }
+    return [{ id: '1W_9Ab_i_hBWwisY3XMqsGYLNb6nWY1o_', name: 'Beranda' }];
+  });
   
   // Drive State
   const [files, setFiles] = useState<DriveFile[]>([]);
@@ -91,6 +102,7 @@ export default function DriveFiles() {
   const [isZipping, setIsZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState('');
   const isCancelledRef = useRef(false);
+  const isFirstRender = useRef(true);
 
   // Subscribe to auth state updates
   useEffect(() => {
@@ -102,8 +114,21 @@ export default function DriveFiles() {
     return unsubscribe;
   }, []);
 
-  // Reset folder path when switching tabs/modes
+  // Persist folderPath to localStorage
   useEffect(() => {
+    try {
+      localStorage.setItem('drive_folder_path', JSON.stringify(folderPath));
+    } catch (e) {
+      console.error('Error saving folderPath to localStorage:', e);
+    }
+  }, [folderPath]);
+
+  // Reset folder path when switching tabs/modes, but ignore initial render
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     if (displayMode === 'public') {
       setFolderPath([{ id: '1W_9Ab_i_hBWwisY3XMqsGYLNb6nWY1o_', name: 'Beranda' }]);
     } else {

@@ -14,8 +14,55 @@ import {
   deleteDoc, 
   doc 
 } from 'firebase/firestore';
-import { db } from './auth';
+import { db, auth } from './auth';
 import { Comment } from '../types';
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 /**
  * Add a comment to a specific folder
@@ -29,17 +76,22 @@ export const addComment = async (
   userPhoto: string | null, 
   text: string
 ): Promise<void> => {
-  const commentsRef = collection(db, 'comments');
-  await addDoc(commentsRef, {
-    folderId,
-    folderName,
-    userId,
-    userName,
-    userEmail,
-    userPhoto,
-    text,
-    createdAt: serverTimestamp()
-  });
+  const path = 'comments';
+  try {
+    const commentsRef = collection(db, path);
+    await addDoc(commentsRef, {
+      folderId,
+      folderName,
+      userId,
+      userName,
+      userEmail,
+      userPhoto,
+      text,
+      createdAt: serverTimestamp()
+    });
+  } catch (err: any) {
+    handleFirestoreError(err, OperationType.CREATE, path);
+  }
 };
 
 /**
@@ -47,9 +99,11 @@ export const addComment = async (
  */
 export const subscribeComments = (
   folderId: string, 
-  onUpdate: (comments: Comment[]) => void
+  onUpdate: (comments: Comment[]) => void,
+  onError?: (errorMsg: string) => void
 ): () => void => {
-  const commentsRef = collection(db, 'comments');
+  const path = 'comments';
+  const commentsRef = collection(db, path);
   // Query only by folderId without orderBy to avoid composite index requirements
   const q = query(
     commentsRef, 
@@ -78,6 +132,10 @@ export const subscribeComments = (
     onUpdate(comments);
   }, (error) => {
     console.error('Error listening to comments:', error);
+    if (onError) {
+      // Extract clean error message for user UI
+      onError(error.message || String(error));
+    }
   });
 };
 
@@ -85,6 +143,11 @@ export const subscribeComments = (
  * Delete a comment
  */
 export const deleteComment = async (commentId: string): Promise<void> => {
-  const commentDocRef = doc(db, 'comments', commentId);
-  await deleteDoc(commentDocRef);
+  const path = `comments/${commentId}`;
+  try {
+    const commentDocRef = doc(db, 'comments', commentId);
+    await deleteDoc(commentDocRef);
+  } catch (err: any) {
+    handleFirestoreError(err, OperationType.DELETE, path);
+  }
 };

@@ -26,15 +26,24 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   const [newCommentText, setNewCommentText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   // Subscribe to real-time comments whenever folderId changes
   useEffect(() => {
     setIsLoadingComments(true);
-    const unsubscribe = subscribeComments(folderId, (updatedComments) => {
-      setComments(updatedComments);
-      setIsLoadingComments(false);
-    });
+    setCommentsError(null);
+    const unsubscribe = subscribeComments(
+      folderId, 
+      (updatedComments) => {
+        setComments(updatedComments);
+        setIsLoadingComments(false);
+      },
+      (errorStr) => {
+        setCommentsError(errorStr);
+        setIsLoadingComments(false);
+      }
+    );
     return unsubscribe;
   }, [folderId]);
 
@@ -135,6 +144,37 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
           <div className="py-12 flex flex-col items-center justify-center space-y-2">
             <Clock className="w-6 h-6 text-emerald-500 animate-spin" />
             <p className="text-xs text-slate-500 font-medium">Memuat komentar...</p>
+          </div>
+        ) : commentsError ? (
+          <div className="py-12 text-center flex flex-col items-center justify-center max-w-sm mx-auto">
+            <div className="w-12 h-12 bg-rose-50 rounded-2xl border border-rose-100 text-rose-500 flex items-center justify-center shadow-3xs mb-3.5">
+              <Clock className="w-5 h-5 stroke-[1.5]" />
+            </div>
+            <h4 className="text-xs font-bold text-slate-800">Gagal Memuat Diskusi</h4>
+            <p className="text-[11px] text-rose-600 mt-1 leading-relaxed">
+              {commentsError}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setIsLoadingComments(true);
+                setCommentsError(null);
+                subscribeComments(
+                  folderId, 
+                  (updatedComments) => {
+                    setComments(updatedComments);
+                    setIsLoadingComments(false);
+                  },
+                  (errorStr) => {
+                    setCommentsError(errorStr);
+                    setIsLoadingComments(false);
+                  }
+                );
+              }}
+              className="mt-3 px-3 py-1.5 bg-slate-100 hover:bg-slate-250 text-slate-700 text-[10px] font-semibold rounded-lg transition-colors cursor-pointer"
+            >
+              Coba Lagi
+            </button>
           </div>
         ) : comments.length === 0 ? (
           <div className="py-12 text-center flex flex-col items-center justify-center max-w-sm mx-auto">
