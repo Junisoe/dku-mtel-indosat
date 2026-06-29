@@ -1,10 +1,10 @@
 {
   "projectId": "dku-mtel-indosat-7c533",
-  "appId": "1:919970897737:web:28a6c3f21c71ec42928498",
+  "appId": "1:919970897737:web:af0d0ced17cc9d89928498",
   "apiKey": "AIzaSyBgvMjaCN7j6c8Pve9_GZpxMgs2oANbEKE",
   "authDomain": "dku-mtel-indosat-7c533.firebaseapp.com",
-  "firestoreDatabaseId": "(default)",
+  "firestoreDatabaseId": "ai-studio-googledrivesyncv-e1b4cb75-11fa-4f14-a748-cd6f98632208",
   "storageBucket": "dku-mtel-indosat-7c533.firebasestorage.app",
   "messagingSenderId": "919970897737",
-  "measurementId": "G-0FWQ3Q3EN2"
+  "measurementId": ""
 }

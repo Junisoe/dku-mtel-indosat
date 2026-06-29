@@ -27,6 +27,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingComments, setIsLoadingComments] = useState(true);
   const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [isFromCache, setIsFromCache] = useState<boolean>(false);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   // Subscribe to real-time comments whenever folderId changes
@@ -35,8 +36,9 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     setCommentsError(null);
     const unsubscribe = subscribeComments(
       folderId, 
-      (updatedComments) => {
+      (updatedComments, fromCache) => {
         setComments(updatedComments);
+        setIsFromCache(fromCache);
         setIsLoadingComments(false);
       },
       (errorStr) => {
@@ -137,6 +139,22 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
           <span>Real-time</span>
         </div>
       </div>
+
+      {/* Offline/Cache Mode Alert Banner */}
+      {isFromCache && (
+        <div className="mx-6 mt-4 p-4 bg-amber-50 border border-amber-200/50 rounded-xl flex gap-3 text-slate-800 text-xs animate-in fade-in duration-200">
+          <Clock className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="space-y-1 flex-1">
+            <p className="font-bold text-amber-900 leading-none">Menghubungkan ke Cloud (Mode Offline)...</p>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              Komentar Anda saat ini hanya tersimpan di browser lokal Anda dan <strong>akan hilang jika halaman dimuat ulang</strong> sebelum tersinkronisasi ke Cloud. Pengguna lain juga belum dapat melihatnya.
+            </p>
+            <div className="pt-1.5 text-[10px] text-slate-600 leading-relaxed font-medium">
+              💡 <strong>Solusi Admin:</strong> Pastikan Anda telah mengaktifkan <strong>Firestore Database</strong> di Firebase Console (<a href={`https://console.firebase.google.com/project/dku-mtel-indosat-7c533/firestore`} target="_blank" rel="noreferrer" className="underline font-bold text-emerald-600 hover:text-emerald-700">buka di sini</a>). Jika ada tombol <strong>"Create Database"</strong> (Buat Database), Anda wajib mengkliknya agar sinkronisasi real-time dapat bekerja normal.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Comments List Feed */}
       <div className="p-6 max-h-[360px] overflow-y-auto bg-slate-50/30 flex-1 space-y-4">

@@ -99,7 +99,7 @@ export const addComment = async (
  */
 export const subscribeComments = (
   folderId: string, 
-  onUpdate: (comments: Comment[]) => void,
+  onUpdate: (comments: Comment[], isFromCache: boolean) => void,
   onError?: (errorMsg: string) => void
 ): () => void => {
   const path = 'comments';
@@ -110,7 +110,7 @@ export const subscribeComments = (
     where('folderId', '==', folderId)
   );
 
-  return onSnapshot(q, (snapshot) => {
+  return onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
     const comments: Comment[] = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
@@ -129,7 +129,7 @@ export const subscribeComments = (
     
     // Sort client-side by createdAt ascending to ensure chronological order without index requirements
     comments.sort((a, b) => a.createdAt - b.createdAt);
-    onUpdate(comments);
+    onUpdate(comments, snapshot.metadata.fromCache);
   }, (error) => {
     console.error('Error listening to comments:', error);
     if (onError) {
