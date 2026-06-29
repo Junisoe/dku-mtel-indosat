@@ -253,9 +253,9 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
                 <UserIcon className="w-4 h-4" />
               </div>
               <div className="text-center sm:text-left">
-                <p className="text-xs font-bold text-slate-700">Masuk Log untuk Berdiskusi</p>
+                <p className="text-xs font-bold text-slate-700">Masuk Log untuk Ikut Berdiskusi</p>
                 <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                  Anda harus masuk log menggunakan akun Google Anda terlebih dahulu untuk dapat membaca dan mengirim komentar di sini.
+                  Anda dapat melihat jalannya diskusi, tetapi harus masuk log menggunakan akun Google terlebih dahulu untuk mengirim komentar di sini.
                 </p>
               </div>
             </div>

@@ -50,10 +50,10 @@ export const subscribeComments = (
   onUpdate: (comments: Comment[]) => void
 ): () => void => {
   const commentsRef = collection(db, 'comments');
+  // Query only by folderId without orderBy to avoid composite index requirements
   const q = query(
     commentsRef, 
-    where('folderId', '==', folderId), 
-    orderBy('createdAt', 'asc')
+    where('folderId', '==', folderId)
   );
 
   return onSnapshot(q, (snapshot) => {
@@ -72,6 +72,9 @@ export const subscribeComments = (
         createdAt: data.createdAt ? data.createdAt.toDate().getTime() : Date.now()
       });
     });
+    
+    // Sort client-side by createdAt ascending to ensure chronological order without index requirements
+    comments.sort((a, b) => a.createdAt - b.createdAt);
     onUpdate(comments);
   }, (error) => {
     console.error('Error listening to comments:', error);
